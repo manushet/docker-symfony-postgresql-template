@@ -1,0 +1,71 @@
+version: '3'
+
+networks:
+    manager-network:
+
+services:                            
+    manager_nginx:
+        build:
+            context: ./docker/nginx
+            dockerfile: Dockerfile
+        ports:
+            - 8000:80
+        volumes:
+            - .:/app  
+        networks:
+            - manager-network    
+        extra_hosts:
+            - host.docker.internal:host-gateway    
+        depends_on:
+            - manager_php_fpm
+    manager_postgres:
+        build: 
+            context: ./docker/postgres      
+            dockerfile: Dockerfile
+        environment:
+            - POSTGRES_PASSWORD=password
+            - POSTGRES_USER=admin
+            - POSTGRES_DB=manager_db
+            - TZ=Asia/Bangkok
+            - LANG=C.UTF-8
+        cap_add:
+            - SYS_NICE
+        volumes:
+            - ./database_data:/var/lib/postgresql/data:rw
+        ports:
+            - 5432:5432
+        networks:
+            - manager-network     
+        restart: always     
+    manager_adminer:
+        image: adminer
+        ports:
+            - 8080:8080
+        networks:
+            - manager-network           
+        depends_on:
+            - manager_postgres      
+    manager_php_fpm:
+        build:
+            context: ./
+            dockerfile: ./docker/php/Dockerfile
+        tty: true
+        volumes:
+            - .:/app
+        working_dir: /app
+        environment:
+            - APP_DEBUG=1
+            - PHP_IDE_CONFIG=serverName=manager.loc
+            - XDEBUG_MODES=develop,debug
+            - REMOTE_HOST=host.docker.internal
+            - REMOTE_PORT=9003
+            - IDE_KEY=docker
+        extra_hosts:
+            - host.docker.internal:host-gateway
+        networks:
+            - manager-network   
+        restart: always
+        depends_on:
+            - manager_postgres 
+volumes:
+    database_data:
